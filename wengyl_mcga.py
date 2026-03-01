@@ -4,59 +4,43 @@
 
 '''
 
+import urllib.parse
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
-
-
-def get_google_news():
-    # 搜尋關鍵字「同步買超 OR 攻高」
-    url = f'https://news.google.com/search?q=%22%E5%90%8C%E6%AD%A5%E8%B2%B7%E8%B6%85%22%20OR%20%22%E6%94%BB%E9%AB%98%22%20%20when%3A4h&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant'
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-    }
-
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    # print(soup)
-    # return soup
-
-    news_list = []
-    for item in soup.find_all("article", class_="IFHyqb"): # 更新的 Google 新聞項目 class
-        title_tag = item.find("a", class_="JtKRv")
-        title = title_tag.text if title_tag else "No title" # 標題
-        link = title_tag["href"] if title_tag else "No link" # 連結
-        if link.startswith("."):
-            link = "https://news.google.com" + link[1:]
-        source_tag = item.find("div", class_="vr1PYe")
-        source = source_tag.text if source_tag else "No source" # 來源
-        date_tag = item.find("time", class_="hvbAAd")
-        date = date_tag.text if date_tag else "No date" # 日期
-
-
-        news_list.append({
-            "title": title,
-            "link": link,
-            "source": source,
-            "date": date
-        })
-    
-    return news_list
+import feedparser
 
 def check_news():
+    # 1. 設定關鍵字並轉換為 URL 編碼格式
+    query = "同步買超 OR 攻高 when:4h"
+    encoded_query = urllib.parse.quote(query)
 
-    new_news = get_google_news()
+    # 將網址改為 Google 新聞的 RSS 搜尋端點
+    rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+    print(f"Fetching news from: {rss_url}")
 
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-   
-    if new_news:
-        # 處理新公告，例如發送通知
-        print(f"有新的news - {current_time}")
-  
-    else:
-        print(f"沒有新的news - {current_time}")
+    # 2. 發送請求以獲取 RSS 內容
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    response = requests.get(rss_url, headers=headers)
 
-    return new_news
+    # 3. 使用 feedparser 解析回傳的 XML 內容
+    feed = feedparser.parse(response.content)
 
-if __name__ == "__main__":
-    check_news()
+    news_list = []
+
+    # 4. 迴圈讀取每一篇新聞
+    for entry in feed.entries:
+        news_list.append({
+            'title': entry.title,
+            'link': entry.link,
+            'source': entry.source.title if 'source' in entry else '未知',
+            'time': entry.published
+        })
+
+    # 回傳抓取到的新聞列表，給 run.py 接收
+    return news_list
+
+
+
+
+
